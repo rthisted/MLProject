@@ -1,0 +1,366 @@
+---
+title: "Machine Learning Project"
+author: "Ronald Thisted"
+date: '`r Sys.time()`'
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+```{r preamble, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Load libraries needed for analyses below.  If they aren't installed,
+# the build will fail early and can then easily be remedied.
+library(caret)
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(pROC)
+library(randomForest)
+library(RColorBrewer)
+library(ipred)
+library(plyr)
+ptmtot <- proc.time()
+```
+
+# Initial data wrangling steps
+
+## Downloading and preprocessing the data
+
+```{r download, cache=TRUE}
+# Download the training and test data if this hasn't been done earlier
+#  (We test for this, because these commands take a while to complete)
+fileUrl1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileUrl2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+if (!file.exists("pml-training.csv")) {
+        download.file(fileUrl1, dest="pml-training.csv", method="curl")
+        download.file(fileUrl2, dest="pml-testing.csv", method="curl")
+}
+library(utils)
+trainSet <- read.csv("pml-training.csv")
+testSet  <- read.csv("pml-testing.csv")
+```
+
+## Data cleaning
+
+From a preliminary look at the training data set in Excel and R, some of
+the variables have lots of NAs, and some have entries
+for only a subset of rows corresponding to `new_window=="yes"`.
+For these variables, the automatic reading of the .csv file puts
+the numeric values in quotes, so that they are read as
+strings rather than numerics.  They can be converted back to
+numerics, but a key question is what to do with the `new_window`
+subsets.  Should we consider only those rows tiwh `new_window
+=="no"`, as the other rows appear to be summary information
+of some sort?
+
+```{r example1}
+widx <- trainSet$new_window=="yes"
+table(widx)
+x1 <- trainSet$kurtosis_roll_belt
+head(summary(x1),24)
+suppressWarnings(x2 <- as.numeric(as.character(x1)))
+summary(x2)
+table(widx,!is.na(x2))
+x3 <- data.frame(as.character(x1),x2)
+head(x3[!is.na(x2),])
+```
+
+Here are all of the variables that are factor variables in the
+training set.  This means that they either are true factor variables
+(like `classe`), or they contain a mix of numeric and non-numeric values
+in Excel.
+
+```{r factor}
+mydataF<-trainSet[,sapply(trainSet,function(x)is.factor(x))]
+colnames(mydataF)
+```
+
+Let's try to fix them up:
+```{r fixer}
+fixer <- function(x) {if (is.factor(x)) {x <- as.numeric(as.character(x))} else x}
+options(warn=-1)
+ds <- sapply(trainSet[,-c(1:6,160)],fixer)
+options(warn=0)
+ds <- data.frame(trainSet[,1:6],ds,classe=trainSet[,160])
+
+# count the number of NAs (and imputed NAs from the factor conversion)
+naCols <- vector(length=160)
+for (i in 1:160){ naCols[i]<- sum(is.na(ds[,i]))}
+table(naCols)
+
+# Let's delete columns that are just these summary cols
+dssub <- ds[,which(naCols < 10)]
+```
+
+## Omitting non-predictors
+Since the timestamps uniquely identify
+occasions in the training set (but are independent of anything that
+will appear in the test set), they can be used to perfectly
+predict (in-sample) class, but are useless for out-of-sample prediction.
+Similary user name is not helpful for out-of-sample prediction. Using
+the command `table(dssub$num_window,dssub$user_name)` (output omitted),
+it is also clear that each window number is used only for a single user.
+Thus, these variables should be omitted from any prediction algorithm.
+These are variables 1:5 and 7 in the data set.
+
+We also restrict the prediction model to be based on the cases for which
+`new_window=="no"`, which is variable number 6 in the data set.  Thus, 
+columns 8:60 are used for model building.
+
+# Building alternative machine-learning models
+
+We start with a simple recursive partitioning prediction model (CART), followed
+by $k$-nearest neighbors, random forests, and then bagged trees.  We expect
+that the random forest model will be our final model, and most of our
+diagnostic steps will be focused on that model.
+
+## CART model (recursive partitioning)
+
+```{r model1}
+set.seed(9943413)
+ptm <- proc.time()
+model1 <- train(classe ~ .,
+                data=dssub[dssub$new_window=="no",8:60],
+                method="rpart")
+confusionMatrix(predict(model1),dssub$classe[dssub$new_window=="no"])
+varImp(model1)
+fancyRpartPlot(model1$finalModel)
+t <- proc.time()-ptm
+te <- t["elapsed"]
+t
+```
+
+Note that no cases are classified into class D by the CART algorithm, and
+that we only have a combined accuracy of 0.496---not great.
+
+Time to fit this model was `r floor(te/60)` minutes, `r te-60*floor(te/60)` seconds.
+
+## $k$-nearest neighbor model
+
+In the nearest-neighbor calculation, we standardize the predictors so that
+they are not on different scales (thereby giving each predictor an equal
+weight in the distance calculations).
+
+```{r knn, cache=TRUE}
+set.seed(9341355)
+ptm2 <- proc.time()
+model2 <- train(classe ~ .,
+                data=dssub[dssub$new_window=="no",8:60],
+                preProcess=c("center", "scale"),
+                method="knn")
+model2
+confusionMatrix(predict(model2),dssub$classe[dssub$new_window=="no"])
+varImp(model2)
+t2 <- proc.time()-ptm2
+te2 <- t2["elapsed"]
+t2
+```
+
+Note the generally good predictive performance (over 95%), and the very large
+amount of computation time (`r floor(te2/60)` minutes, `r te2-60*floor(te2/60)` seconds).
+
+### Random forests
+
+```{r rf}
+set.seed(9434193)
+ptm <- proc.time()
+model3 <- randomForest(classe ~ .,
+                       data=dssub[dssub$new_window=="no",8:60],
+                       ntree=400)
+model3
+confusionMatrix(predict(model3),dssub$classe[dssub$new_window=="no"])
+varImp(model3)
+# get order of importance
+idx <- order(-varImp(model3))
+foo<-varImp(model3)[idx,]
+bar <- data.frame(var=attributes(varImp(model3))$row.names[idx], foo)
+head(bar, 30)
+varImpPlot(model3, cex=0.5)
+t <- proc.time()-ptm
+te <- t["elapsed"]
+t
+```
+
+In-sample prediction is very good---over 99%.
+
+Elapsed computation time (`r floor(te/60)` minutes `r te-60*floor(te/60)` seconds) is much more reasonable.
+
+
+### Bagged trees
+
+Just to see if an alternative approach (bootstrap aggregation of trees) without
+randomized selection of variables at each stage does as well as random forests,
+we also fit a bagged-tree model.
+
+```{r bagtree, cache=TRUE}
+set.seed(478881)
+ptm4 <- proc.time()
+options(warn=-1)
+model4 <- train(classe ~ .,
+                data=dssub[dssub$new_window=="no",8:60],
+                method="treebag")
+model4
+options(warn=0)
+confusionMatrix(predict(model4),dssub$classe[dssub$new_window=="no"])
+varImp(model4)
+t4 <- proc.time()-ptm4
+te4 <- t4["elapsed"]
+t4
+```
+
+Elapsed computation time (`r floor(te4/60)` minutes
+`r te4-60*floor(te4/60)` seconds).
+
+### Model comparisons
+```{r modelcomp}
+predictionSet <- data.frame(m1=predict(model1, newdata=testSet), m2=predict(model2, newdata=testSet), m3=predict(model3, newdata=testSet),m4=predict(model4, newdata=testSet))
+predictionSet
+```
+
+### Build prediction vector for submission part
+```{r submit}
+answers <- as.character(predictionSet$m3)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+cwd <- getwd()
+setwd("./Submissions")
+pml_write_files(answers)
+setwd(cwd)
+```
+# Model selection
+
+All of the models except for the simple recursive partition
+model produce very similar accuracies and identical predictions
+on the test set.  Of the three models (knn, random forests,
+bagged trees), the random forest model is both the fastest
+to compute and has the most informative diagnostics available.
+For that reason, we select the random forest model as our
+final model.
+
+## Out of sample error for random forest model
+
+The calculations below show out-of-bag (OOB) error rates
+for random forests built on varying number of trees.
+The error rates are shown for each class, as well as
+an overall (averaged) out-of-bag error rate. The final
+model above was calculated using 400 trees, by which time 
+the error rate has stabilized; indeed, 200 trees probably
+suffices.
+
+The first plot shows the error rates for each class of
+activity.  Class D is hardest to predict with error
+rate about 0.8%.  This is still remarkably good.  Class E
+is easiest to predict, with error rates of about 0.1%.  The
+other classes have error rates of about 0.3%.
+
+Because these are unbiased estimates based on out-of-bag
+samples, that is, observations in the training set that were
+held out at each stage of the random forest creation, they
+give a good indication of the error rates that could be
+expected in out-of-sample classification.  I would expect
+classification error rates in test samples generated in the
+same manner as the training samples to be about 0.5%.
+
+```{r oob}
+ntreelist=c(1,2,5,10,30,100,200,300,400)
+cbind(ntree=ntreelist,round(model3$err.rate[ntreelist,],6))
+plot(model3, main="Random Forest OOB Error Rates")
+qplot(trees, OOB,data=as.data.frame(cbind(trees=1:400,model3$err.rate))[30:400,])
+```
+
+## Cross validation for random forest model
+
+The random forest algorithm uses cross validation as
+an intrinsic component of its tree-building, so in some sense,
+cross validation has already been done.
+
+To get some idea of the effect of number of variables used
+to construct the random forest, we looked at a 40% sample
+of the training set and did cross validation.
+
+```{r rfcv}
+set.seed(788481)
+ptm <- proc.time()
+temp <- dssub[dssub$new_window=="no",8:60]
+# split up training set
+tempy <- temp[,53]
+inTrain <- createDataPartition(tempy, p=0.4, list=F)
+newTrain <- temp[ inTrain,]
+newTest  <- temp[-inTrain,]
+rfcvRep <- rfcv(newTrain[,-53], newTrain[,53])
+rfcvRep$error.cv
+with(rfcvRep,
+     plot(n.var, error.cv, log="x", type="o",
+          lwd=2, main="Cross-validated error rates"))
+t <- proc.time()-ptm
+te <- t["elapsed"]
+t
+```
+
+## Accuracy of OOB error-rate predictions
+
+To show that the OOB error rates are good forecasts of
+(new) out-of-sample error rates, I split the training
+data set into two pieces: a 40% sample on which I ran the
+random forest procedure and the remaining 60% of the original
+training set to use as a "test set" with known true classes
+that I will use to validate the error-rate estimates.
+
+Although for some classes the actual error rates are as much
+as twice the predicted rates, the overall accuracy corresponds
+closely to the actual error rates observed in the held-out
+sample.
+
+```{r model3a}
+set.seed(487881)
+ptm <- proc.time()
+model3a <- randomForest(classe ~ .,
+                       data=newTrain,
+                       ntree=400)
+
+# obtain OOB error rates to estimate out-of-sample error rates
+ntreelist=c(100,200,300,400)
+cbind(ntree=ntreelist,round(model3a$err.rate[ntreelist,],6))
+pred <- predict(model3a,newTest)
+
+# see how well actual misclassification rates compare
+ttc <- table(pred,newTest$classe)
+ttc
+
+# class-wise error rates held-out test set
+tt <- confusionMatrix(pred,newTest$classe)
+error.rates <- c(1-tt$overall[1],1-tt$byClass[,3])
+names(error.rates)[1] <- "Overall"
+round(error.rates,6)
+
+# compare actual with predicted
+error.compare <- rbind(error.rates,model3a$err.rate[400,])
+rownames(error.compare) <- c("actual", "predicted")
+error.compare
+
+t <- proc.time()-ptm
+te <- t["elapsed"]
+t
+```
+
+## Session information
+
+It is useful to record a bit of information about
+the environment that was in place when the document above was produced.
+```{r sysinfo}
+sessionInfo()
+Sys.time()
+ttot <- proc.time()-ptmtot
+tetot<- ttot["elapsed"]
+```
+
+Total elapsed time was
+`r floor(tetot/60)` minutes `r tetot-60*floor(tetot/60)` seconds.
+
