@@ -66,7 +66,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <li><a href="#omitting-non-predictors">Omitting non-predictors</a></li>
 <li><a href="#building-alternative-machine-learning-models">Building alternative machine-learning models</a><ul>
 <li><a href="#cart-model-recursive-partitioning">CART model (recursive partitioning)</a></li>
-<li><a href="#k-nearest-neighbor-model"><em>k</em>-nearest neighbor model</a></li>
+<li><a href="#k-nearest-neighbor-model"><span class="math">\(k\)</span>-nearest neighbor model</a></li>
 <li><a href="#random-forests">Random forests</a></li>
 <li><a href="#out-of-sample-error-for-random-forest-model">Out of sample error for random forest model</a></li>
 <li><a href="#cross-validation-for-random-forest-model">Cross validation for random forest model</a></li>
@@ -92,7 +92,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 </div>
 <div id="building-alternative-machine-learning-models" class="section level2">
 <h2>Building alternative machine-learning models</h2>
-<p>We start with a simple recursive partitioning prediction model (CART), followed by <em>k</em>-nearest neighbors, random forests, and then bagged trees. We expect that the random forest model will be our final model, and most of our diagnostic steps will be focused on that model.</p>
+<p>We start with a simple recursive partitioning prediction model (CART), followed by <span class="math">\(k\)</span>-nearest neighbors, random forests, and then bagged trees. We expect that the random forest model will be our final model, and most of our diagnostic steps will be focused on that model.</p>
 <div id="cart-model-recursive-partitioning" class="section level3">
 <h3>CART model (recursive partitioning)</h3>
 <p>Our first machine learning algorithm is the simple CART model of recursive partioning.</p>
@@ -140,8 +140,8 @@ fancyRpartPlot(model1$finalModel)</code></pre>
 <p>The main advantage of the CART model is that it is easy to understand and display, as the Figure above indicates. However, the accuracy of the CART model is poor (less than 50%), and none of the cases are classified into class D. The time needed to fit this model was 1 minute, 32 seconds.</p>
 </div>
 <div id="k-nearest-neighbor-model" class="section level3">
-<h3><em>k</em>-nearest neighbor model</h3>
-<p>As a second potential machine-learning algorithm, we considered a <em>k</em>-nearest neighbor classifier. In this calculation, we standardize the predictors so that they are not on different scales (thereby giving each predictor an equal weight in the distance calculations when calculating “nearness”).</p>
+<h3><span class="math">\(k\)</span>-nearest neighbor model</h3>
+<p>As a second potential machine-learning algorithm, we considered a <span class="math">\(k\)</span>-nearest neighbor classifier. In this calculation, we standardize the predictors so that they are not on different scales (thereby giving each predictor an equal weight in the distance calculations when calculating “nearness”).</p>
 <pre class="r"><code>set.seed(9341355)
 ptm2 &lt;- proc.time()
 model2 &lt;- train(classe ~ .,
@@ -266,7 +266,7 @@ model3</code></pre>
 # get order of importance
 t &lt;- proc.time()-ptm; te &lt;- t[&quot;elapsed&quot;]</code></pre>
 <p>In-sample prediction accuracy is very good—over 99%. The estimated out-of-sample prediction error rate (“OOB estimate of error rate”) is a remarkable 0.3%. [We examine how much to believe this below.]</p>
-<p>The elapsed computation time of 0 minutes and<br />59 seconds is much more reasonable than for the <em>k</em>-nn algorithm, and the accuracy of the random forest is slightly better. In addition, the predicted classes for the test data set were identical for the two models. For these reasons, we settle on the random forest algorithm as our final model, and we examine some of its properties below.</p>
+<p>The elapsed computation time of 0 minutes and<br />59 seconds is much more reasonable than for the <span class="math">\(k\)</span>-nn algorithm, and the accuracy of the random forest is slightly better. In addition, the predicted classes for the test data set were identical for the two models. For these reasons, we settle on the random forest algorithm as our final model, and we examine some of its properties below.</p>
 <div id="relative-importance-of-variables" class="section level4">
 <h4>Relative importance of variables</h4>
 <p>Breiman suggested an approach for determining the relative importance of individual predictors in the final random forest ensemble. The calculations below list the top 15 (of 52) predictors and the display gives a graphical depiction of the variables’ relative importance for prediction.</p>
@@ -367,7 +367,7 @@ error.compare</code></pre>
 te &lt;- t[&quot;elapsed&quot;]
 t</code></pre>
 <pre><code>##    user  system elapsed 
-##   20.68    0.30   21.14</code></pre>
+##  22.100   0.364  25.762</code></pre>
 </div>
 </div>
 

@@ -139,7 +139,7 @@ omits the specified rows and columns is called `tidyTrain`.
 ## Building alternative machine-learning models
 
 We start with a simple recursive partitioning prediction model (CART),
-followed by $k$-nearest neighbors, random forests, and then
+followed by *k*-nearest neighbors, random forests, and then
 bagged trees.  We expect
 that the random forest model will be our final model, and most of our
 diagnostic steps will be focused on that model.
@@ -167,10 +167,10 @@ accuracy of the CART model is poor (less than 50%), and
 none of the cases are classified into class D. The time needed to fit
 this model was `r floor(te/60)` minute, `r round(te-60*floor(te/60),0)` seconds.
 
-### $k$-nearest neighbor model
+### *k*-nearest neighbor model
 
 As a second potential machine-learning algorithm, we considered a
-$k$-nearest neighbor classifier.  In this calculation, we standardize
+*k*-nearest neighbor classifier.  In this calculation, we standardize
 the predictors so that
 they are not on different scales (thereby giving each predictor an equal
 weight in the distance calculations when calculating "nearness").
@@ -218,7 +218,7 @@ a remarkable 0.3%. [We examine how much to believe this below.]
 
 The elapsed computation time of `r floor(te/60)` minutes and  
 `r round(te-60*floor(te/60),0)` seconds is much more reasonable than for
-the $k$-nn algorithm, and the accuracy of the random forest is slightly
+the *k*-nn algorithm, and the accuracy of the random forest is slightly
 better.  In addition, the predicted classes for the test data set were
 identical for the two models.  For these reasons, we settle on the
 random forest algorithm as our final model,
