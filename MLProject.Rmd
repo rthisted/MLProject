@@ -1,0 +1,42 @@
+---
+title: "Machine Learning Project"
+author: "Ronald Thisted"
+date: "August 23, 2014"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r preamble, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Load libraries needed for analyses below.  If they aren't installed,
+# the build will fail early and can then easily be remedied.
+library(caret)
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(pROC)
+library(randomForest)
+library(RColorBrewer)
+library(ipred)
+library(plyr)
+ptmtot <- proc.time()
+```
+
+# Executive Summary
+
+We construct a machine-learning algorithm to predict activity
+quality, represented by five classes of activity "A" through "E",
+based on activoty monitor data.  To build this algorithm, we first
+do some data cleaning, remove unusable variables, and remove 
+variables that are not suitable for prediction (such as session
+labels or timestamps) that are not related to activity.  Next,
+we look at four kinds of machine-learning algorithms, and we select
+random forests as being highly accurate as well as relatively
+inexpensive computationally.  We then evaluate likely out-of-sample
+prediction errors based on this model, taking advantage of both the
+internal cross validation that is built into the random forest 
+algorithm, and also assessing the effect of number of predictors
+on prediction accuracy using cross validation.
