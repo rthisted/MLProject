@@ -69,8 +69,8 @@ head(x3[!is.na(x2),])
 
 Here are all of the variables that are factor variables in the
 training set.  This means that they either are true factor variables
-(like `classe`), or they contain a mix of numeric and non-numeric values
-in Excel.
+(like `classe`), or they contain a mix of numeric and non-numeric
+values in Excel.
 
 ```{r factor}
 mydataF<-trainSet[,sapply(trainSet,function(x)is.factor(x))]
