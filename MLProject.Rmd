@@ -3,9 +3,9 @@ title: "Machine Learning Project"
 author: "Ronald Thisted"
 date: "August 23, 2014"
 output:
-  html_document:
-    toc: yes
   pdf_document:
+    toc: yes
+  html_document:
     toc: yes
 ---
 
@@ -176,6 +176,7 @@ confuse1$table
 
 The figure below shows the CART algorithm based on the training
 data set.
+
 ```{r plot1, echo=FALSE}
 fancyRpartPlot(model1$finalModel)
 ```
