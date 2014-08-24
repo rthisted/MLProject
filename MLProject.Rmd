@@ -138,11 +138,20 @@ omits the specified rows and columns is called `tidyTrain`.
 
 ## Building alternative machine-learning models
 
-We start with a simple recursive partitioning prediction model (CART),
+We started with a simple recursive partitioning prediction model (CART),
 followed by *k*-nearest neighbors, random forests, and then
-bagged trees.  We expect
-that the random forest model will be our final model, and most of our
-diagnostic steps will be focused on that model.
+bagged trees.  At each stage, we compared the performance of
+the current algorithm to its best competitor thus far, provisionally
+keeping the model that best trades off accuracy and computational
+efficiency.  We then focused most of our attention on the best
+performing model to examine issues of out-of-sample accuracy, variable
+importance, and cross-validated error.
+
+At each stage, we present only the results that are most useful in
+assessing performance and deciding between algorithms.  The R code
+that does the calculation and produces this report is contained in the
+*knitr* document `MLProject.Rmd`.  Fuller output is contained in the
+html file `MLProject-working.html`.
 
 ### CART model (recursive partitioning)
 
@@ -153,24 +162,47 @@ recursive partioning.
 set.seed(9943413)
 ptm <- proc.time()
 model1 <- train(classe ~ .,
-                data=tidyTrain,
-                method="rpart")
-confusionMatrix(predict(model1),tidyTrain$classe)
-# varImp(model1)
-fancyRpartPlot(model1$finalModel)
+                data=tidyTrain, method="rpart")
+confuse1 <- confusionMatrix(predict(model1),tidyTrain$classe)
+```
+```{r timing1, echo=FALSE}
 t <- proc.time()-ptm; te <- t["elapsed"]
 ```
+
+The confusion matrix (table of predicted vs actual classes) is 
+```{r model1table, echo=FALSE}        
+confuse1$table
+```
+
+The figure below shows the CART algorithm based on the training
+data set.
+```{r plot1, echo=FALSE}
+fancyRpartPlot(model1$finalModel)
+```
+
+The class-specific accuracies ("Positive predictive values")
+are given in the table below.  Note that, since no cases were
+predicted to be in Class D, the accuracy is undefined (that is,
+0 correct out of 0 predictions).
+```{r table1, echo=FALSE}
+round(confuse1$byClass[,"Pos Pred Value"],4)
+```
+
+The overall accuracy is `r confuse1$overall["Accuracy"]`, so the
+error rate is `r 1-confuse1$overall["Accuracy"]`.
 
 The main advantage of the CART model is that it is easy to
 understand and display, as the Figure above indicates.  However, the
 accuracy of the CART model is poor (less than 50%), and 
-none of the cases are classified into class D. The time needed to fit
+none of the cases are correctly classified into class D.
+The time needed to fit
 this model was `r floor(te/60)` minute, `r round(te-60*floor(te/60),0)` seconds.
 
 ### *k*-nearest neighbor model
 
 As a second potential machine-learning algorithm, we considered a
-*k*-nearest neighbor classifier.  In this calculation, we standardize
+*k*-nearest neighbor classifier.  Before we carry out this calculation,
+we standardize
 the predictors so that
 they are not on different scales (thereby giving each predictor an equal
 weight in the distance calculations when calculating "nearness").
@@ -178,15 +210,28 @@ weight in the distance calculations when calculating "nearness").
 ```{r knn, cache=TRUE}
 set.seed(9341355)
 ptm2 <- proc.time()
-model2 <- train(classe ~ .,
-                data=tidyTrain,
-                preProcess=c("center", "scale"),
-                method="knn")
-model2
-confusionMatrix(predict(model2),tidyTrain$classe)
-# varImp(model2)
+model2 <- train(classe ~ ., data=tidyTrain,
+                preProcess=c("center", "scale"), method="knn")
+confuse2 <- confusionMatrix(predict(model2),tidyTrain$classe)
+```
+```{r timing2, echo=FALSE}
 t2 <- proc.time()-ptm2; te2 <- t2["elapsed"]
 ```
+
+The confusion matrix (table of predicted vs actual classes) is 
+```{r model2table, echo=FALSE}        
+round(confuse2$table, 4)
+```
+
+The class-specific accuracies ("Positive predictive values")
+are given in the table below.  .
+```{r table2, echo=FALSE}
+confuse2$byClass[,"Pos Pred Value"]
+```
+
+The overall accuracy is `r round(confuse2$overall["Accuracy"],4)`, so the
+error rate is `r round(1-confuse2$overall["Accuracy"],4)`.
+
 
 Note the generally good predictive performance (over 99%).  However, the
 computation time needed to fit the model (`r floor(te2/60)` minutes, `r round(te2-60*floor(te2/60),0)` seconds) was substantial.
@@ -197,20 +242,45 @@ model, we did not consider the CART model further.
 ### Random forests
 
 Our third candidate machine learning algorithm was the random forest
-algorithm of Leo Breiman.
+algorithm of Leo Breiman.  This algorithm creates a large collection
+("ensemble") of trees which are combined as the end result of the
+algorithm.  Our algorithm uses 400 trees.
+In the case of classification problems such as this one,
+each of the trees gets one "vote" as to the correct classification for
+a case, and the majority vote becomes the prediction. 
+An important feature of random forests is that
+multiple trees are calculated using bootstrap selection of cases
+(and bootstrap selection of variables as each node of the tree is
+grown).  As a result, for each tree, multiple cases are left out of
+the computation.  These are called "out of bag" cases, and the predictions
+for the out-of-bag cases is used to calculate a projected error rate for
+new (out of sample) cases.  Because they were not part of the original
+training process for the tree, they provide an unbiased estimate of error
+rates.
 
 ```{r rf, cache=TRUE}
 set.seed(9434193)
 ptm <- proc.time()
-model3 <- randomForest(classe ~ .,
-                       data=tidyTrain,
-                       ntree=400)
-model3
-confusionMatrix(predict(model3),tidyTrain$classe)
-# varImp(model3)
-# get order of importance
+model3 <- randomForest(classe ~ ., data=tidyTrain, ntree=400)
+confuse3 <- confusionMatrix(predict(model3),tidyTrain$classe)
+```
+```{r time3, echo=FALSE}
 t <- proc.time()-ptm; te <- t["elapsed"]
 ```
+
+The confusion matrix (table of predicted vs actual classes) is 
+```{r model3table, echo=FALSE}        
+round(confuse3$table, 4)
+```
+The class-specific accuracies ("Positive predictive values")
+are given in the table below.  .
+```{r table3, echo=FALSE}
+confuse3$byClass[,"Pos Pred Value"]
+```
+
+The overall ("OOB") accuracy is
+`r round(confuse3$overall["Accuracy"],4)`, so the
+error rate is `r round(1-confuse3$overall["Accuracy"],4)`.
 
 In-sample prediction accuracy is very good---over 99%.  The estimated
 out-of-sample prediction error rate ("OOB estimate of error rate") is
@@ -220,9 +290,9 @@ The elapsed computation time of `r floor(te/60)` minutes and
 `r round(te-60*floor(te/60),0)` seconds is much more reasonable than for
 the *k*-nn algorithm, and the accuracy of the random forest is slightly
 better.  In addition, the predicted classes for the test data set were
-identical for the two models.  For these reasons, we settle on the
-random forest algorithm as our final model,
-and we examine some of its properties below.
+identical for *k*-nn and random forests.  For these reasons, we selected
+the random forest algorithm as our final model.
+We examine some of its properties below.
 
 #### Relative importance of variables
 
@@ -250,11 +320,31 @@ model above was calculated using 400 trees, by which time
 the error rate has stabilized; indeed, 200 trees probably
 suffices.
 
+```{r oob, echo=FALSE}
+ntreelist=c(1,2,5,10,30,100,200,300,400)
+cbind(ntree=ntreelist,round(model3$err.rate[ntreelist,],6))
+```
+
 The first plot shows the error rates for each class of
-activity.  Class D is hardest to predict with error
+activity.  Note that the plot has five curves, one for each of the
+five activity classes.
+Class D is hardest to predict with error
 rate about 0.8%.  This is still remarkably good.  Class E
 is easiest to predict, with error rates of about 0.1%.  The
 other classes have error rates of about 0.3%.
+
+```{r plot3a, echo=FALSE}
+plot(model3, main="Random Forest OOB Error Rates")
+```
+
+The plot below shows, for random forest models with 30 or greater trees,
+the overall out-of-bag error estimates.  Note that by 200 trees the
+prediction errors have stabilized at about 0.3%.  Our model uses
+400 trees.
+
+```{r plot3b, echo=FALSE}
+qplot(trees, OOB,data=as.data.frame(cbind(trees=1:400,model3$err.rate))[30:400,])
+```
 
 Because these are unbiased estimates based on out-of-bag
 samples, that is, observations in the training set that were
@@ -262,14 +352,7 @@ held out at each stage of the random forest creation, they
 give a good indication of the error rates that could be
 expected in out-of-sample classification.  I would expect
 classification error rates in test samples generated in the
-same manner as the training samples to be about 0.5%.
-
-```{r oob}
-ntreelist=c(1,2,5,10,30,100,200,300,400)
-cbind(ntree=ntreelist,round(model3$err.rate[ntreelist,],6))
-plot(model3, main="Random Forest OOB Error Rates")
-qplot(trees, OOB,data=as.data.frame(cbind(trees=1:400,model3$err.rate))[30:400,])
-```
+same manner as the training samples to be about 0.3--0.5%.
 
 ### Cross validation for random forest model
 
@@ -312,12 +395,7 @@ random forest procedure, and the remaining 60% of the original
 training set to use as a "test set" with known true classes
 that I will use to validate the error-rate estimates.
 
-Although for some classes the actual error rates are as much
-as twice the predicted rates, the overall accuracy corresponds
-closely to the actual error rates observed in the held-out
-sample.
-
-```{r model3a}
+```{r model3a, echo=FALSE, results='hide', cache=TRUE}
 set.seed(487881)
 ptm <- proc.time()
 model3a <- randomForest(classe ~ .,
@@ -338,14 +416,27 @@ tt <- confusionMatrix(pred,newTest$classe)
 error.rates <- c(1-tt$overall[1],1-tt$byClass[,3])
 names(error.rates)[1] <- "Overall"
 round(error.rates,6)
+```
 
+The table below compares the OOB estimated error rates for each
+class for a new
+sample, based on the 40% of the original training set, with the 
+actual error rates when the random forest is applied to the 60% of 
+the data that was held out.
+```{r table3c, echo=FALSE}
 # compare actual with predicted
 error.compare <- rbind(error.rates,model3a$err.rate[400,])
 rownames(error.compare) <- c("actual", "predicted")
 error.compare
-
-t <- proc.time()-ptm
-te <- t["elapsed"]
+```
+```{r time3a, echo=FALSE, results='hide'}
+t <- proc.time()-ptm; te <- t["elapsed"]
 t
 ```
+
+Although for some classes the actual error rates are as much
+as twice the predicted rates, the overall accuracy is quite
+good, and corresponds
+closely to the actual error rates observed in the held-out
+sample.
 
